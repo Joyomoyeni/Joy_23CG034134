@@ -1,0 +1,64 @@
+===============================================
+EMOTION DETECTION WEB APP - DEPLOYMENT LINK
+===============================================
+
+Student Information:
+-------------------
+Name: [YOUR FULL NAME]
+Matric No: [YOUR MATRIC NUMBER]
+Course: [COURSE CODE/NAME]
+Submission Date: [DATE]
+
+Deployment Details:
+------------------
+Hosting Platform: Render
+Application URL: https://your-emotion-detection-app.onrender.com
+
+Alternative Links (if any):
+GitHub Repository: https://github.com/yourusername/your-repo-name
+Demo Video: [Optional - YouTube/Drive link]
+
+Features Implemented:
+--------------------
+✓ Image Upload Detection
+✓ Live Camera Detection
+✓ Database Storage (SQLite)
+✓ Emotion Classification (7 classes)
+✓ Pre-trained Model Integration (DeepFace - VGGFace/ResNet50)
+✓ Responsive Web Interface
+✓ Detection History/Records
+
+Technologies Used:
+-----------------
+Backend: Flask (Python)
+ML Framework: TensorFlow, DeepFace
+Database: SQLite
+Frontend: HTML, CSS, JavaScript
+Deployment: Gunicorn, [Platform Name]
+
+Test Credentials (if required):
+------------------------------
+Username: N/A
+Password: N/A
+
+Notes:
+------
+- The application may take 30-60 seconds to wake up on first visit (free tier cold start)
+- Camera access requires HTTPS (provided by hosting platform)
+- Database persists user data and detection history
+- All emotion detections are stored with timestamps
+
+Known Limitations:
+-----------------
+- Free tier may have slower response times
+- Model downloads on first use (cached afterward)
+- Maximum upload size: 16MB
+
+Contact Information:
+-------------------
+Email: your.email@student.covenantuniversity.edu.ng
+Phone: [Optional]
+
+===============================================
+Last Updated: [DATE]
+===============================================
