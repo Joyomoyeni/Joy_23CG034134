@@ -25,7 +25,7 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 # Allowed file extensions
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp'}
 
-# Emotion labels
+# Emotion labels and recommendations
 EMOTION_LABELS = {
     'angry': 'Angry',
     'disgust': 'Disgust',
@@ -36,12 +36,98 @@ EMOTION_LABELS = {
     'neutral': 'Neutral'
 }
 
+EMOTION_RECOMMENDATIONS = {
+    'angry': {
+        'message': 'Take a deep breath and try to relax.',
+        'tips': [
+            '🧘‍♂️ Practice deep breathing exercises',
+            '🚶‍♀️ Go for a short walk to clear your mind',
+            '🎵 Listen to calming music',
+            '💬 Talk to someone you trust about your feelings',
+            '✍️ Write down what\'s bothering you'
+        ],
+        'color': '#f8d7da'
+    },
+    'disgust': {
+        'message': 'It\'s okay to feel uncomfortable sometimes.',
+        'tips': [
+            '🌬️ Get some fresh air',
+            '🧼 Clean your surroundings for a fresh start',
+            '🍵 Have a refreshing drink',
+            '📱 Distract yourself with something pleasant',
+            '🎨 Engage in a creative activity'
+        ],
+        'color': '#d1ecf1'
+    },
+    'fear': {
+        'message': 'You\'re safe. Take it one step at a time.',
+        'tips': [
+            '🛡️ Remind yourself that you are safe',
+            '💪 Focus on what you can control',
+            '🤝 Reach out to a friend or family member',
+            '📝 List your strengths and past victories',
+            '🧘 Practice mindfulness or meditation'
+        ],
+        'color': '#e2e3e5'
+    },
+    'happy': {
+        'message': 'That\'s wonderful! Keep spreading the positivity!',
+        'tips': [
+            '😊 Share your joy with others',
+            '📸 Capture this moment with a photo',
+            '🎉 Celebrate your achievements',
+            '💝 Do something kind for someone else',
+            '📓 Write about what made you happy today'
+        ],
+        'color': '#d4edda'
+    },
+    'sad': {
+        'message': 'It\'s okay to feel sad. Be kind to yourself.',
+        'tips': [
+            '💙 Allow yourself to feel your emotions',
+            '☎️ Call a friend or loved one',
+            '🎬 Watch something uplifting',
+            '🐾 Spend time with a pet if you have one',
+            '🌟 Remember that this feeling is temporary'
+        ],
+        'color': '#cce5ff'
+    },
+    'surprise': {
+        'message': 'Life is full of surprises! Embrace the moment.',
+        'tips': [
+            '🎊 Enjoy the unexpected moment',
+            '📝 Journal about this surprise',
+            '🤔 Reflect on what surprised you',
+            '😄 Share the experience with others',
+            '🌈 Stay open to new experiences'
+        ],
+        'color': '#fff3cd'
+    },
+    'neutral': {
+        'message': 'You seem calm and balanced.',
+        'tips': [
+            '⚖️ Maintain your inner peace',
+            '🎯 Use this clarity to plan your goals',
+            '📚 This is a great time for focused work',
+            '🧘‍♀️ Practice gratitude for the calm',
+            '☕ Enjoy the present moment'
+        ],
+        'color': '#e7e7e7'
+    }
+}
+
+
+def get_emotion_recommendation(emotion):
+    """Get recommendation for detected emotion"""
+    emotion_lower = emotion.lower()
+    return EMOTION_RECOMMENDATIONS.get(emotion_lower, EMOTION_RECOMMENDATIONS['neutral'])
+
 
 def init_database():
     """Initialize SQLite database"""
     conn = sqlite3.connect('emotion_detection.db')
     cursor = conn.cursor()
-    
+
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS emotion_records (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -55,7 +141,7 @@ def init_database():
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     ''')
-    
+
     conn.commit()
     conn.close()
     print("Database initialized successfully!")
@@ -71,23 +157,23 @@ def save_to_database(name, image_path, image_data, emotion_result, source_type):
     try:
         conn = sqlite3.connect('emotion_detection.db')
         cursor = conn.cursor()
-        
+
         # Extract emotion information
         dominant_emotion = emotion_result.get('dominant_emotion', 'Unknown')
         emotions = emotion_result.get('emotion', {})
-        
+
         # Get confidence for dominant emotion
         confidence = emotions.get(dominant_emotion, 0.0) if emotions else 0.0
-        
+
         # Convert all emotions to string
         all_emotions_str = str(emotions)
-        
+
         cursor.execute('''
             INSERT INTO emotion_records 
             (name, image_path, image_data, detected_emotion, confidence, all_emotions, source_type)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         ''', (name, image_path, image_data, dominant_emotion, confidence, all_emotions_str, source_type))
-        
+
         conn.commit()
         conn.close()
         return True
@@ -99,10 +185,10 @@ def save_to_database(name, image_path, image_data, emotion_result, source_type):
 def detect_emotion_deepface(image_array):
     """
     Detect emotion using DeepFace with VGGFace/ResNet50
-    
+
     Args:
         image_array: numpy array of the image
-        
+
     Returns:
         dict: Detection results with emotions and confidence scores
     """
@@ -115,11 +201,11 @@ def detect_emotion_deepface(image_array):
             enforce_detection=False,
             detector_backend='opencv'
         )
-        
+
         # Handle both single face and multiple faces
         if isinstance(result, list):
             result = result[0]
-        
+
         return {
             'success': True,
             'dominant_emotion': result['dominant_emotion'],
@@ -145,42 +231,42 @@ def detect_from_upload():
     try:
         # Get user name
         name = request.form.get('name', 'Anonymous')
-        
+
         # Check if image is provided
         if 'image' not in request.files:
             return jsonify({'success': False, 'error': 'No image provided'})
-        
+
         file = request.files['image']
-        
+
         if file.filename == '':
             return jsonify({'success': False, 'error': 'No file selected'})
-        
+
         if file and allowed_file(file.filename):
             # Read image
             image_bytes = file.read()
             image = Image.open(io.BytesIO(image_bytes))
             image_array = np.array(image)
-            
+
             # Convert RGB to BGR for OpenCV compatibility
             if len(image_array.shape) == 3 and image_array.shape[2] == 3:
                 image_array = cv2.cvtColor(image_array, cv2.COLOR_RGB2BGR)
-            
+
             # Detect emotion
             result = detect_emotion_deepface(image_array)
-            
+
             if not result['success']:
                 return jsonify({'success': False, 'error': result['error']})
-            
+
             # Save to database
             filename = secure_filename(file.filename)
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             unique_filename = f"{timestamp}_{filename}"
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
-            
+
             # Save file
             with open(filepath, 'wb') as f:
                 f.write(image_bytes)
-            
+
             # Save to database
             save_to_database(
                 name=name,
@@ -189,11 +275,11 @@ def detect_from_upload():
                 emotion_result=result,
                 source_type='upload'
             )
-            
+
             # Prepare response
             emotion_data = result['emotion']
             dominant_emotion = result['dominant_emotion']
-            
+
             # Convert numpy float32 to regular Python float
             emotions_dict = {}
             for k, v in emotion_data.items():
