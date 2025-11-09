@@ -287,11 +287,13 @@ def detect_from_upload():
                 emotions_dict[label] = float(round(float(v), 2))
 
             confidence = float(round(float(emotion_data[dominant_emotion]), 2))
+            recommendation = get_emotion_recommendation(dominant_emotion)
 
             return jsonify({
                 'success': True,
                 'dominant_emotion': EMOTION_LABELS.get(dominant_emotion, dominant_emotion),
                 'emotions': emotions_dict,
+                'recommendation': recommendation['message'],
                 'confidence': confidence
             })
 
@@ -358,10 +360,13 @@ def detect_from_camera():
 
         confidence = float(round(float(emotion_data[dominant_emotion]), 2))
 
+        recommendation = get_emotion_recommendation(dominant_emotion)
+
         return jsonify({
             'success': True,
             'dominant_emotion': EMOTION_LABELS.get(dominant_emotion, dominant_emotion),
             'emotions': emotions_dict,
+            'recommendation': recommendation['message'],
             'confidence': confidence
         })
 
