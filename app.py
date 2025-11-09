@@ -297,8 +297,10 @@ def detect_from_upload():
                 'success': True,
                 'dominant_emotion': EMOTION_LABELS.get(dominant_emotion, dominant_emotion),
                 'emotions': emotions_dict,
-                'recommendation': recommendation['message'],
-                'confidence': confidence
+                'confidence': confidence,
+                'recommendation_message': recommendation['message'],
+                'recommendation_tips': recommendation['tips'],
+                'recommendation_color': recommendation['color']
             })
 
         return jsonify({'success': False, 'error': 'Invalid file type'})
@@ -370,8 +372,10 @@ def detect_from_camera():
             'success': True,
             'dominant_emotion': EMOTION_LABELS.get(dominant_emotion, dominant_emotion),
             'emotions': emotions_dict,
-            'recommendation': recommendation['message'],
-            'confidence': confidence
+            'confidence': confidence,
+            'recommendation_message': recommendation['message'],
+            'recommendation_tips': recommendation['tips'],
+            'recommendation_color': recommendation['color']
         })
 
     except Exception as e:

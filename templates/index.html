@@ -760,9 +760,11 @@
             const labelEl = document.getElementById(source + 'EmotionLabel');
             const barsEl = document.getElementById(source + 'EmotionBars');
             const resultEl = document.getElementById(source + 'Result');
+            const recEl = document.getElementById(source + 'Recommendation');
 
             labelEl.textContent = `Detected: ${data.dominant_emotion} (${data.confidence}%)`;
 
+            // Emotion bars
             barsEl.innerHTML = '';
             for (const [emotion, confidence] of Object.entries(data.emotions)) {
                 const barHtml = `
@@ -775,12 +777,27 @@
                             <div class="bar-fill" style="width: ${confidence}%"></div>
                         </div>
                     </div>
-                `;
+        `           ;
                 barsEl.innerHTML += barHtml;
             }
 
+    // Recommendation
+            if (data.recommendation_message && data.recommendation_tips) {
+                recEl.innerHTML = `
+                    <div class="recommendation-message" style="border-left: 5px solid ${data.recommendation_color || '#667eea'};">
+                        ${data.recommendation_message}
+                    </div>
+                    <ul class="recommendation-tips">
+                        ${data.recommendation_tips.map(tip => `<li>${tip}</li>`).join('')}
+                    </ul>
+        `       ;
+                recEl.style.display = 'block';
+            } else {
+                recEl.style.display = 'none';
+            }
+
             resultEl.classList.add('show');
-        }
+    }
 
         // Utility functions
         function showLoading(id, show) {
