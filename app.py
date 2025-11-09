@@ -119,11 +119,7 @@ EMOTION_RECOMMENDATIONS = {
 
 def get_emotion_recommendation(emotion):
     """Get recommendation for detected emotion"""
-    if not emotion:
-        return EMOTION_RECOMMENDATIONS['neutral']
-
-    # Convert to lowercase and strip spaces
-    emotion_lower = emotion.lower().strip()
+    emotion_lower = emotion.lower()
     return EMOTION_RECOMMENDATIONS.get(emotion_lower, EMOTION_RECOMMENDATIONS['neutral'])
 
 
@@ -282,7 +278,7 @@ def detect_from_upload():
 
             # Prepare response
             emotion_data = result['emotion']
-            dominant_emotion = result.get("dominant_emotion", "neutral")
+            dominant_emotion = result['dominant_emotion']
 
             # Convert numpy float32 to regular Python float
             emotions_dict = {}
@@ -291,16 +287,12 @@ def detect_from_upload():
                 emotions_dict[label] = float(round(float(v), 2))
 
             confidence = float(round(float(emotion_data[dominant_emotion]), 2))
-            recommendation = get_emotion_recommendation(dominant_emotion)
 
             return jsonify({
                 'success': True,
                 'dominant_emotion': EMOTION_LABELS.get(dominant_emotion, dominant_emotion),
                 'emotions': emotions_dict,
-                'confidence': confidence,
-                'recommendation_message': recommendation['message'],
-                'recommendation_tips': recommendation['tips'],
-                'recommendation_color': recommendation['color']
+                'confidence': confidence
             })
 
         return jsonify({'success': False, 'error': 'Invalid file type'})
@@ -356,7 +348,7 @@ def detect_from_camera():
 
         # Prepare response
         emotion_data = result['emotion']
-        dominant_emotion = result.get("dominant_emotion", "neutral")
+        dominant_emotion = result['dominant_emotion']
 
         # Convert numpy float32 to regular Python float
         emotions_dict = {}
@@ -366,16 +358,11 @@ def detect_from_camera():
 
         confidence = float(round(float(emotion_data[dominant_emotion]), 2))
 
-        recommendation = get_emotion_recommendation(dominant_emotion)
-
         return jsonify({
             'success': True,
             'dominant_emotion': EMOTION_LABELS.get(dominant_emotion, dominant_emotion),
             'emotions': emotions_dict,
-            'confidence': confidence,
-            'recommendation_message': recommendation['message'],
-            'recommendation_tips': recommendation['tips'],
-            'recommendation_color': recommendation['color']
+            'confidence': confidence
         })
 
     except Exception as e:
