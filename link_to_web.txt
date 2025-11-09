@@ -4,19 +4,19 @@ EMOTION DETECTION WEB APP - DEPLOYMENT LINK
 
 Student Information:
 -------------------
-Name: [YOUR FULL NAME]
-Matric No: [YOUR MATRIC NUMBER]
-Course: [COURSE CODE/NAME]
-Submission Date: [DATE]
+Name: Omoyeni Joy Folakemi
+Matric No: 23CG034134
+Course: CSC331
+Submission Date: 11/9/2025
 
 Deployment Details:
 ------------------
 Hosting Platform: Render
-Application URL: https://your-emotion-detection-app.onrender.com
+Application URL: https://joy-23cg034134.onrender.com
 
 Alternative Links (if any):
-GitHub Repository: https://github.com/yourusername/your-repo-name
-Demo Video: [Optional - YouTube/Drive link]
+GitHub Repository: https://github.com/Joyomoyeni/Joy_23CG034134
+
 
 Features Implemented:
 --------------------
