@@ -187,6 +187,7 @@
             padding: 20px;
             border-radius: 10px;
             border-left: 5px solid #667eea;
+            background: #ffffff;
         }
 
         .recommendation-message {
@@ -194,19 +195,23 @@
             font-weight: 600;
             margin-bottom: 15px;
             color: #333;
+            display: block;
         }
 
         .recommendation-tips {
             list-style: none;
             padding: 0;
+            margin: 0;
         }
 
         .recommendation-tips li {
-            padding: 10px;
+            padding: 10px 15px;
             margin-bottom: 8px;
-            background: white;
+            background: #f8f9ff;
             border-radius: 8px;
             font-size: 0.95em;
+            display: block;
+            border-left: 3px solid #667eea;
         }
 
         .warning-message {
@@ -442,7 +447,12 @@
 
                 <div class="result-container" id="uploadResult">
                     <div class="result-emotion" id="uploadEmotionLabel"></div>
+                    <div id="uploadWarning" class="warning-message" style="display:none;"></div>
                     <div class="emotion-bars" id="uploadEmotionBars"></div>
+                    <div class="recommendation-box" id="uploadRecommendation">
+                        <div class="recommendation-message" id="uploadRecMessage"></div>
+                        <ul class="recommendation-tips" id="uploadRecTips"></ul>
+                    </div>
                 </div>
             </div>
 
@@ -482,7 +492,12 @@
 
                 <div class="result-container" id="cameraResult">
                     <div class="result-emotion" id="cameraEmotionLabel"></div>
+                    <div id="cameraWarning" class="warning-message" style="display:none;"></div>
                     <div class="emotion-bars" id="cameraEmotionBars"></div>
+                    <div class="recommendation-box" id="cameraRecommendation">
+                        <div class="recommendation-message" id="cameraRecMessage"></div>
+                        <ul class="recommendation-tips" id="cameraRecTips"></ul>
+                    </div>
                 </div>
             </div>
         </div>
@@ -630,17 +645,25 @@
                 video.style.display = 'block';
                 cameraPlaceholder.style.display = 'none';
 
-                // Wait for video to be ready
+                // Wait for video to be ready with better error handling
                 await new Promise((resolve, reject) => {
-                    video.onloadedmetadata = () => {
-                        console.log('Video metadata loaded');
-                        video.play().then(() => {
-                            console.log('Video playing');
-                            resolve();
-                        }).catch(reject);
+                    let attempts = 0;
+                    const maxAttempts = 20;
+
+                    const checkVideo = () => {
+                        attempts++;
+                        if (video.readyState >= 2) {
+                            // Video is ready
+                            video.play().then(resolve).catch(reject);
+                        } else if (attempts >= maxAttempts) {
+                            reject(new Error('Video failed to load after 20 seconds'));
+                        } else {
+                            // Try again in 1 second
+                            setTimeout(checkVideo, 1000);
+                        }
                     };
-                    // Timeout after 10 seconds
-                    setTimeout(() => reject(new Error('Video load timeout')), 10000);
+
+                    video.onloadedmetadata = checkVideo;
                 });
 
                 cameraActive = true;
@@ -755,14 +778,27 @@
             }
         });
 
-        // Display results
+        // Display results with recommendations
         function displayResults(source, data) {
             const labelEl = document.getElementById(source + 'EmotionLabel');
             const barsEl = document.getElementById(source + 'EmotionBars');
             const resultEl = document.getElementById(source + 'Result');
+            const recMessageEl = document.getElementById(source + 'RecMessage');
+            const recTipsEl = document.getElementById(source + 'RecTips');
+            const recBoxEl = document.getElementById(source + 'Recommendation');
+            const warningEl = document.getElementById(source + 'Warning');
 
             labelEl.textContent = `Detected: ${data.dominant_emotion} (${data.confidence}%)`;
 
+            // Show warning if present
+            if (data.warning) {
+                warningEl.textContent = '⚠️ ' + data.warning;
+                warningEl.style.display = 'block';
+            } else {
+                warningEl.style.display = 'none';
+            }
+
+            // Display emotion bars
             barsEl.innerHTML = '';
             for (const [emotion, confidence] of Object.entries(data.emotions)) {
                 const barHtml = `
@@ -777,6 +813,20 @@
                     </div>
                 `;
                 barsEl.innerHTML += barHtml;
+            }
+
+            // Display recommendations
+            if (data.recommendation) {
+                const rec = data.recommendation;
+                recMessageEl.textContent = rec.message;
+                recBoxEl.style.background = rec.color;
+
+                recTipsEl.innerHTML = '';
+                rec.tips.forEach(tip => {
+                    const li = document.createElement('li');
+                    li.textContent = tip;
+                    recTipsEl.appendChild(li);
+                });
             }
 
             resultEl.classList.add('show');

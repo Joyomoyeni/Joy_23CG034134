@@ -14,6 +14,7 @@ import os
 from werkzeug.utils import secure_filename
 import io
 from PIL import Image
+import tensorflow as tf
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
@@ -24,6 +25,26 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 # Allowed file extensions
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp'}
+
+# Configuration
+USE_CUSTOM_MODEL = os.path.exists('emotion_detection_model_final.keras') or os.path.exists('emotion_detection_model_final.h5')
+
+if USE_CUSTOM_MODEL:
+    print("Loading custom trained model...")
+    try:
+        if os.path.exists('emotion_detection_model_final.keras'):
+            CUSTOM_MODEL = tf.keras.models.load_model('emotion_detection_model_final.keras')
+        else:
+            CUSTOM_MODEL = tf.keras.models.load_model('emotion_detection_model_final.h5')
+        print("Custom model loaded successfully!")
+    except Exception as e:
+        print(f"Error loading custom model: {e}")
+        print("Falling back to DeepFace...")
+        USE_CUSTOM_MODEL = False
+        CUSTOM_MODEL = None
+else:
+    CUSTOM_MODEL = None
+    print("No custom model found. Using DeepFace only.")
 
 # Emotion labels and recommendations
 EMOTION_LABELS = {
@@ -182,9 +203,9 @@ def save_to_database(name, image_path, image_data, emotion_result, source_type):
         return False
 
 
-def detect_emotion_deepface(image_array):
+def detect_emotion_custom_model(image_array):
     """
-    Detect emotion using DeepFace with VGGFace/ResNet50
+    Detect emotion using custom trained model
 
     Args:
         image_array: numpy array of the image
@@ -193,13 +214,76 @@ def detect_emotion_deepface(image_array):
         dict: Detection results with emotions and confidence scores
     """
     try:
-        # Analyze the image using DeepFace
-        # Using VGGFace as the detector and emotion analysis
+        # Convert to grayscale if needed
+        if len(image_array.shape) == 3:
+            gray = cv2.cvtColor(image_array, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = image_array
+
+        # Detect face using OpenCV
+        face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+        faces = face_cascade.detectMultiScale(gray, 1.3, 5)
+
+        if len(faces) == 0:
+            return {
+                'success': False,
+                'error': 'No face detected. Please ensure your face is clearly visible.'
+            }
+
+        # Get the first face
+        (x, y, w, h) = faces[0]
+        face_roi = gray[y:y+h, x:x+w]
+
+        # Resize to 48x48 (FER2013 size)
+        face_roi = cv2.resize(face_roi, (48, 48))
+        face_roi = face_roi.reshape(1, 48, 48, 1) / 255.0
+
+        # Predict
+        predictions = CUSTOM_MODEL.predict(face_roi, verbose=0)[0]
+
+        # Create emotion dictionary
+        emotion_labels_list = ['angry', 'disgust', 'fear', 'happy', 'sad', 'surprise', 'neutral']
+        emotion_dict = {}
+        for i, label in enumerate(emotion_labels_list):
+            emotion_dict[label] = float(predictions[i] * 100)
+
+        # Get dominant emotion
+        dominant_idx = np.argmax(predictions)
+        dominant_emotion = emotion_labels_list[dominant_idx]
+
+        return {
+            'success': True,
+            'dominant_emotion': dominant_emotion,
+            'emotion': emotion_dict,
+            'region': {'x': int(x), 'y': int(y), 'w': int(w), 'h': int(h)},
+            'model_used': 'custom'
+        }
+
+    except Exception as e:
+        return {
+            'success': False,
+            'error': f'Custom model error: {str(e)}'
+        }
+
+
+def detect_emotion_deepface(image_array):
+    """
+    Detect emotion using DeepFace with improved accuracy
+
+    Args:
+        image_array: numpy array of the image
+
+    Returns:
+        dict: Detection results with emotions and confidence scores
+    """
+    try:
+        # Use opencv detector (no download needed!)
         result = DeepFace.analyze(
             img_path=image_array,
             actions=['emotion'],
-            enforce_detection=False,
-            detector_backend='opencv'
+            enforce_detection=True,
+            detector_backend='opencv',  # Changed from retinaface
+            silent=True
         )
 
         # Handle both single face and multiple faces
@@ -210,13 +294,56 @@ def detect_emotion_deepface(image_array):
             'success': True,
             'dominant_emotion': result['dominant_emotion'],
             'emotion': result['emotion'],
-            'region': result.get('region', {})
+            'region': result.get('region', {}),
+            'model_used': 'deepface'
         }
+    except ValueError as e:
+        # Face not detected - try with less strict detection
+        try:
+            result = DeepFace.analyze(
+                img_path=image_array,
+                actions=['emotion'],
+                enforce_detection=False,
+                detector_backend='opencv',
+                silent=True
+            )
+
+            if isinstance(result, list):
+                result = result[0]
+
+            return {
+                'success': True,
+                'dominant_emotion': result['dominant_emotion'],
+                'emotion': result['emotion'],
+                'region': result.get('region', {}),
+                'warning': 'Face detection uncertain - results may be less accurate',
+                'model_used': 'deepface'
+            }
+        except Exception as e2:
+            return {
+                'success': False,
+                'error': 'No face detected in the image. Please ensure your face is clearly visible and well-lit.'
+            }
     except Exception as e:
         return {
             'success': False,
             'error': str(e)
         }
+
+
+def detect_emotion(image_array):
+    """
+    Detect emotion using available models
+    Tries custom model first, falls back to DeepFace
+    """
+    if USE_CUSTOM_MODEL:
+        print("Using custom trained model...")
+        result = detect_emotion_custom_model(image_array)
+        if result['success']:
+            return result
+        print("Custom model failed, trying DeepFace...")
+
+    return detect_emotion_deepface(image_array)
 
 
 @app.route('/')
@@ -252,7 +379,7 @@ def detect_from_upload():
                 image_array = cv2.cvtColor(image_array, cv2.COLOR_RGB2BGR)
 
             # Detect emotion
-            result = detect_emotion_deepface(image_array)
+            result = detect_emotion(image_array)
 
             if not result['success']:
                 return jsonify({'success': False, 'error': result['error']})
@@ -276,7 +403,7 @@ def detect_from_upload():
                 source_type='upload'
             )
 
-            # Prepare response
+            # Prepare response with recommendations
             emotion_data = result['emotion']
             dominant_emotion = result['dominant_emotion']
 
@@ -288,12 +415,22 @@ def detect_from_upload():
 
             confidence = float(round(float(emotion_data[dominant_emotion]), 2))
 
-            return jsonify({
+            # Get recommendation
+            recommendation = get_emotion_recommendation(dominant_emotion)
+
+            response_data = {
                 'success': True,
                 'dominant_emotion': EMOTION_LABELS.get(dominant_emotion, dominant_emotion),
                 'emotions': emotions_dict,
-                'confidence': confidence
-            })
+                'confidence': confidence,
+                'recommendation': recommendation
+            }
+
+            # Add warning if present
+            if 'warning' in result:
+                response_data['warning'] = result['warning']
+
+            return jsonify(response_data)
 
         return jsonify({'success': False, 'error': 'Invalid file type'})
 
@@ -325,7 +462,7 @@ def detect_from_camera():
             image_array = cv2.cvtColor(image_array, cv2.COLOR_RGB2BGR)
 
         # Detect emotion
-        result = detect_emotion_deepface(image_array)
+        result = detect_emotion(image_array)
 
         if not result['success']:
             return jsonify({'success': False, 'error': result['error']})
@@ -346,7 +483,7 @@ def detect_from_camera():
             source_type='camera'
         )
 
-        # Prepare response
+        # Prepare response with recommendations
         emotion_data = result['emotion']
         dominant_emotion = result['dominant_emotion']
 
@@ -358,12 +495,22 @@ def detect_from_camera():
 
         confidence = float(round(float(emotion_data[dominant_emotion]), 2))
 
-        return jsonify({
+        # Get recommendation
+        recommendation = get_emotion_recommendation(dominant_emotion)
+
+        response_data = {
             'success': True,
             'dominant_emotion': EMOTION_LABELS.get(dominant_emotion, dominant_emotion),
             'emotions': emotions_dict,
-            'confidence': confidence
-        })
+            'confidence': confidence,
+            'recommendation': recommendation
+        }
+
+        # Add warning if present
+        if 'warning' in result:
+            response_data['warning'] = result['warning']
+
+        return jsonify(response_data)
 
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
